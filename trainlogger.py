@@ -1,5 +1,6 @@
 import wandb
 import logging
+import json
 
 class TrainLogger:
     def __init__(self, project_name=None, entity=None, config=None, log_level=logging.INFO, log_file=None, use_wandb=True, **kwargs):
@@ -19,18 +20,13 @@ class TrainLogger:
         self.run = None
 
         # WandB setup (only if enabled)
-        if self.use_wandb:
-            if project_name is None:
-                raise ValueError("project_name must be specified when use_wandb=True")
-            self.project_name = project_name
-            self.entity = entity
-            self.config = config
-            self.kwargs = kwargs
-        else:
-            self.project_name = None
-            self.entity = None
-            self.config = None
-            self.kwargs = None
+        if self.use_wandb and project_name is None:
+            raise ValueError("project_name must be specified when use_wandb=True")
+        
+        self.project_name = project_name
+        self.entity = entity
+        self.config = config
+        self.kwargs = kwargs
 
         # Setup Python logging
         self.logger = logging.getLogger(__name__)
@@ -45,6 +41,10 @@ class TrainLogger:
 
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
+
+        if config:
+            self.logger.info("Logger initialized with configuration:")
+            self.logger.info(json.dumps(config, indent=4))
 
     def start(self, run_name=None, tags=None):
         """
@@ -77,7 +77,7 @@ class TrainLogger:
         if isinstance(data, dict):
             if self.use_wandb and self.run:
                 wandb.log(data)
-            self.logger.info(f"Logged data: {data}")
+            self.logger.info(f"Logged data: {json.dumps(data, indent=4)}")
         else:
             raise ValueError("The data should be a dictionary.")
 
