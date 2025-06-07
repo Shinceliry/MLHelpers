@@ -1,6 +1,7 @@
 import wandb
 import logging
 import json
+import torch
 
 class TrainLogger:
     def __init__(self, project_name=None, entity=None, config=None, log_level=logging.INFO, log_file=None, use_wandb=True, **kwargs):
@@ -77,7 +78,11 @@ class TrainLogger:
         if isinstance(data, dict):
             if self.use_wandb and self.run:
                 wandb.log(data)
-            self.logger.info(f"Logged data: {json.dumps(data, indent=4)}")
+            serializable_data = {
+                k: (v.item() if isinstance(v, torch.Tensor) else v)
+                for k, v in data.items()
+            }
+            self.logger.info(f"Logged data: {json.dumps(serializable_data, indent=4)}")
         else:
             raise ValueError("The data should be a dictionary.")
 
