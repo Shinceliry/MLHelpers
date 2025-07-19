@@ -54,6 +54,33 @@ class TrainLogger:
         self.sweep_counts = sweep_counts
         self.kwargs = kwargs
         self.run = None
+        
+        # Dump initial configs to YAML if requested
+        if self.log_yaml_path:
+            content = {}
+            if self.config is not None:
+                content['config'] = self.config
+            if self.sweep_config is not None:
+                # Sweep config provided directly
+                content['sweep_config'] = self.sweep_config
+            elif self.sweep_id is not None:
+                # Try fetching from W&B API if possible
+                try:
+                    api = wandb.Api()
+                    path = f"{self.entity}/{self.project_name}/{self.sweep_id}"
+                    sweep_obj = api.sweep(path)
+                    fetched = dict(sweep_obj.config)
+                    self.sweep_config = fetched
+                    content['sweep_config'] = fetched
+                except Exception:
+                    # Could not fetch, skip
+                    print("Could not get sweep_config from sweep_id")
+                    pass
+            if content:
+                yaml_path = Path(self.log_yaml_path)
+                yaml_path.parent.mkdir(parents=True, exist_ok=True)
+                with yaml_path.open('w', encoding='utf-8') as f:
+                    yaml.safe_dump(content, f, allow_unicode=True, sort_keys=False)
 
     def start(self):
         """
