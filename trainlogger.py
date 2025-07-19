@@ -2,7 +2,7 @@ import wandb
 import subprocess
 from pathlib import Path
 from typing import Union, Callable, Optional
-import json
+import yaml
 
 # インスタンス化した後は引数が必要なのはlog関数とdump_json関数のみ(いずれもdata(dict)を引数に取る)
 
@@ -15,7 +15,7 @@ class TrainLogger:
         entity: Optional[str] = None,
         config: Optional[dict] = None,
         tags: Optional[list] = None,
-        log_json_path: Optional[str] = None,
+        log_yaml_path: Optional[str] = None,
         sweep_config: Optional[Union[dict, str]] = None,
         sweep_id: Optional[str] = None,
         sweep_function: Optional[Callable] = None,
@@ -33,7 +33,7 @@ class TrainLogger:
         - config (dict): A dictionary of configuration parameters to log. Default is None.
         - sweep_config (dict | str): Sweep configuration dict or path to YAML file.
         - tags (list): A list of tags for the run. Default is None.
-        - log_json_path: Destination JSON file path.
+        - log_yaml_path: Destination YAML file path.
         - sweep_id (str): Sweep ID. Default is None.
         - sweep_function (callable): Function to run for each agent trial. Default is None.
         - sweep_counts (int): Number of agent runs. Default is None.
@@ -47,7 +47,7 @@ class TrainLogger:
         self.entity = entity
         self.config = config
         self.tags = tags
-        self.log_json_path = log_json_path
+        self.log_yaml_path = log_yaml_path
         self.sweep_config = sweep_config
         self.sweep_id = sweep_id
         self.sweep_function = sweep_function
@@ -132,20 +132,20 @@ class TrainLogger:
             project=self.project_name
         )
 
-    def dump_json(self, data: dict):
+    def dump_yaml(self, data: dict):
         """
-        Dumps the provided dict to the specified JSON file path.
+        Dumps the provided dict to the specified YAML file path.
 
         Parameters:
         - data (dict): Dictionary to serialize.
+        - filepath (str | Path): Destination YAML file path.
         """
         if not isinstance(data, dict):
             raise ValueError("Data must be a dictionary.")
-        
-        path = Path(self.log_json_path)
+        path = Path(self.log_yaml_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open('w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+            yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
 
 
 # # 使用例
