@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Union, Callable, Optional
 import json
 
+# インスタンス化した後は引数が必要なのはlog関数とdump_json関数のみ(いずれもdata(dict)を引数に取る)
+
 class TrainLogger:
     def __init__(
         self,
