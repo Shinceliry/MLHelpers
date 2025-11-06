@@ -12,6 +12,7 @@ class TrainLogger:
         use_wandb: bool = True,
         project_name: Optional[str] = None,
         run_name: Optional[str] = None,
+        run_id: Optional[str] = None,
         entity: Optional[str] = None,
         config: Optional[dict] = None,
         tags: Optional[list] = None,
@@ -44,6 +45,7 @@ class TrainLogger:
         self.use_wandb = use_wandb
         self.project_name = project_name
         self.run_name = run_name
+        self.run_id = run_id
         self.entity = entity
         self.config = config
         self.tags = tags
@@ -87,14 +89,28 @@ class TrainLogger:
         Starts a new WandB run and initializes sweep ID if configured.
         """
         if self.use_wandb:
-            self.run = wandb.init(
-                project=self.project_name,
-                entity=self.entity,
-                config=self.config,
-                name=self.run_name,
-                tags=self.tags,
-                **self.kwargs
-            )
+            if self.run_id:
+                # Resume an existing run (must need to provide run_id, e.g., when resuming from checkpoint)
+                self.run = wandb.init(
+                    project=self.project_name,
+                    entity=self.entity,
+                    config=self.config,
+                    name=self.run_name, # Optional: can rename the run when resuming
+                    tags=self.tags,
+                    id=self.run_id,
+                    resume="allow",
+                    **self.kwargs
+                )
+            else:
+                # Initialize a new run
+                self.run = wandb.init(
+                    project=self.project_name,
+                    entity=self.entity,
+                    config=self.config,
+                    name=self.run_name,
+                    tags=self.tags,
+                    **self.kwargs
+                )
         
         # Create sweep ID if needed
         if self.sweep_id is None and self.sweep_config is not None:
