@@ -138,6 +138,70 @@ class TrainLogger:
         
         if self.use_wandb and self.run:
             wandb.log(data)
+            
+    def plot(self, plot_fn_or_name, *plot_args, key: Optional[str] = None, 
+                log: bool = True, log_kwargs: Optional[dict] = None, **plot_kwargs,
+            ):
+        """
+        Generic wrapper for wandb.plot.* functions.
+
+        Parameters
+        ----------
+        plot_fn_or_name:
+            - str: e.g. "heatmap", "confusion_matrix", "bar", "scatter", "line"
+            also accepts "wandb.plot.heatmap" form.
+            - callable: e.g. wandb.plot.heatmap
+
+        *plot_args / **plot_kwargs:
+            forwarded to the underlying wandb.plot.<fn>(*args, **kwargs)
+
+        key:
+            the key name used in wandb.log({key: plot_obj})
+            if None, auto-generated like "plot/heatmap".
+
+        log:
+            if True and wandb enabled+started, it logs to wandb immediately.
+
+        log_kwargs:
+            kwargs forwarded to wandb.log (e.g. {"step": 123, "commit": True})
+
+        Returns
+        -------
+        plot_obj:
+            The object returned by wandb.plot.<fn>(...)
+        """
+        # resolve plot function
+        if isinstance(plot_fn_or_name, str):
+            name = plot_fn_or_name.strip()
+            if name.startswith("wandb.plot."):
+                name = name[len("wandb.plot."):]
+            if not hasattr(wandb, "plot") or not hasattr(wandb.plot, name):
+                available = [n for n in dir(wandb.plot) if not n.startswith("_")] if hasattr(wandb, "plot") else []
+                raise ValueError(
+                    f"wandb.plot.{name} not found. Available examples: {available[:30]}"
+                )
+            plot_fn = getattr(wandb.plot, name)
+            default_key = f"plot/{name}"
+        elif callable(plot_fn_or_name):
+            plot_fn = plot_fn_or_name
+            fn_name = getattr(plot_fn, "__name__", "custom")
+            default_key = f"plot/{fn_name}"
+        else:
+            raise TypeError("plot_fn_or_name must be a str or a callable (e.g., wandb.plot.heatmap).")
+
+        # build plot object
+        plot_obj = plot_fn(*plot_args, **plot_kwargs)
+
+        # log (optional)
+        if key is None:
+            key = default_key
+        if log_kwargs is None:
+            log_kwargs = {}
+
+        if log and self.use_wandb and self.run:
+            wandb.log({key: plot_obj}, **log_kwargs)
+
+        return plot_obj
 
     def finish(self):
         """
