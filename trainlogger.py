@@ -90,19 +90,17 @@ class TrainLogger:
         """
         if self.use_wandb:
             if self.run_id:
-                # Resume an existing run (must need to provide run_id, e.g., when resuming from checkpoint)
                 self.run = wandb.init(
                     project=self.project_name,
                     entity=self.entity,
                     config=self.config,
-                    name=self.run_name, # Optional: can rename the run when resuming
+                    name=self.run_name,
                     tags=self.tags,
                     id=self.run_id,
                     resume="allow",
                     **self.kwargs
                 )
             else:
-                # Initialize a new run
                 self.run = wandb.init(
                     project=self.project_name,
                     entity=self.entity,
@@ -126,82 +124,53 @@ class TrainLogger:
             else:
                 raise ValueError("sweep_config must be a dict or an existing file path.")
 
-    def log(self, data: dict):
+    # データをWandBにログする関数 (数値、音声、画像、チャートなど)
+    def log(self, data: dict, option: Optional[str] = None,  option_config: Optional[dict] = None):
         """
         Logs a dict of metrics to WandB (if enabled).
         
         Parameters:
-        - data (dict): Dictionary to serialize.
+        - data (dict): Dictionary to serialize. {metrics_name: value, audio_name: audio_data, image_name: image_data, plot_name, plot_data...}
+        - option (str): Data format option. ("auido", "image", "plot")
+        - option_config (dict): Additional config for data format options.
+            - "audio": {"sample_rate": int, "caption": str}
+            - "image": {"caption": str}
+            - "plot": {"fn": Callable (e.g. wandb.plot.line), "shared_kwargs": dict}
         """
         if not isinstance(data, dict):
             raise ValueError("The data should be a dictionary.")
         
         if self.use_wandb and self.run:
+            # 音声
+            if option == "audio":
+                for key, value in data.items():
+                    sample_rate = option_config["sample_rate"]
+                    caption = option_config["caption"]
+                    data[key] = wandb.Audio(value, sample_rate=sample_rate, caption=caption)
+            # 画像
+            elif option == "image":
+                for key, value in data.items():
+                    caption = option_config["caption"]
+                    data[key] = wandb.Image(value, caption=caption)
+            # チャート
+            elif option == "plot":
+                if option_config is None or "fn" not in option_config:
+                    raise ValueError('option_config must contain "fn" (e.g. wandb.plot.line) for plot option.')
+                plot_fn = option_config["fn"]
+                shared_kwargs = option_config.get("shared_kwargs", {})
+                new_data = {}
+                for key, value in data.items():
+                    if not isinstance(value, dict):
+                        raise ValueError(
+                            f'For option="plot", data["{key}"] must be a dict of kwargs for the plot function.'
+                        )
+                    kwargs = {**shared_kwargs, **value}
+                    new_data[key] = plot_fn(**kwargs)
+                data = new_data
+            # 数値
+            else:
+                data = data
             wandb.log(data)
-            
-    def plot(self, plot_fn_or_name, *plot_args, key: Optional[str] = None, 
-                log: bool = True, log_kwargs: Optional[dict] = None, **plot_kwargs,
-            ):
-        """
-        Generic wrapper for wandb.plot.* functions.
-
-        Parameters
-        ----------
-        plot_fn_or_name:
-            - str: e.g. "heatmap", "confusion_matrix", "bar", "scatter", "line"
-            also accepts "wandb.plot.heatmap" form.
-            - callable: e.g. wandb.plot.heatmap
-
-        *plot_args / **plot_kwargs:
-            forwarded to the underlying wandb.plot.<fn>(*args, **kwargs)
-
-        key:
-            the key name used in wandb.log({key: plot_obj})
-            if None, auto-generated like "plot/heatmap".
-
-        log:
-            if True and wandb enabled+started, it logs to wandb immediately.
-
-        log_kwargs:
-            kwargs forwarded to wandb.log (e.g. {"step": 123, "commit": True})
-
-        Returns
-        -------
-        plot_obj:
-            The object returned by wandb.plot.<fn>(...)
-        """
-        # resolve plot function
-        if isinstance(plot_fn_or_name, str):
-            name = plot_fn_or_name.strip()
-            if name.startswith("wandb.plot."):
-                name = name[len("wandb.plot."):]
-            if not hasattr(wandb, "plot") or not hasattr(wandb.plot, name):
-                available = [n for n in dir(wandb.plot) if not n.startswith("_")] if hasattr(wandb, "plot") else []
-                raise ValueError(
-                    f"wandb.plot.{name} not found. Available examples: {available[:30]}"
-                )
-            plot_fn = getattr(wandb.plot, name)
-            default_key = f"plot/{name}"
-        elif callable(plot_fn_or_name):
-            plot_fn = plot_fn_or_name
-            fn_name = getattr(plot_fn, "__name__", "custom")
-            default_key = f"plot/{fn_name}"
-        else:
-            raise TypeError("plot_fn_or_name must be a str or a callable (e.g., wandb.plot.heatmap).")
-
-        # build plot object
-        plot_obj = plot_fn(*plot_args, **plot_kwargs)
-
-        # log (optional)
-        if key is None:
-            key = default_key
-        if log_kwargs is None:
-            log_kwargs = {}
-
-        if log and self.use_wandb and self.run:
-            wandb.log({key: plot_obj}, **log_kwargs)
-
-        return plot_obj
 
     def finish(self):
         """
